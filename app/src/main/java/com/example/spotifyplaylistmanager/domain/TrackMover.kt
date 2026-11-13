@@ -1,12 +1,7 @@
 package com.example.spotifyplaylistmanager.domain
 
-import kotlinx.coroutines.delay
 
-class TrackMover(
-    private val repo: SpotifyRepository,
-    private val delayMs: Long = 500L,
-    private val retryDelayMs: Long = 1000L
-) {
+class TrackMover(private val repo: SpotifyRepository) {
 
     fun canDelete(context: PlaybackContext?): Boolean =
         context?.type == ContextType.PLAYLIST || context?.type == ContextType.COLLECTION
@@ -22,16 +17,10 @@ class TrackMover(
             return MoveResult.Failure("Local files cannot be managed via the Spotify API")
         }
 
-        repo.addToPlaylist(targetPlaylistId, trackUri)
-        delay(delayMs)
-
-        // Verify track landed in target
-        var targetContents = repo.getAllPlaylistItems(targetPlaylistId)
-        if (trackUri !in targetContents.trackUris) {
-            delay(retryDelayMs)
-            targetContents = repo.getAllPlaylistItems(targetPlaylistId)
-        }
-        if (trackUri !in targetContents.trackUris) {
+        // A non-blank snapshot_id in Spotify's response confirms the track was persisted.
+        // Re-querying the playlist is unreliable due to Spotify's eventual consistency.
+        val newSnapshotId = repo.addToPlaylist(targetPlaylistId, trackUri)
+        if (newSnapshotId.isBlank()) {
             return MoveResult.Failure("Could not verify track was added to target playlist")
         }
 

@@ -56,7 +56,7 @@ open class FakeSpotifyRepository : SpotifyRepository {
 class TrackMoverTest {
 
     private val fake = FakeSpotifyRepository()
-    private val mover = TrackMover(fake, delayMs = 0, retryDelayMs = 0)
+    private val mover = TrackMover(fake)
 
     private val playlistContext = PlaybackContext(ContextType.PLAYLIST, "spotify:playlist:src", "src")
     private val albumContext = PlaybackContext(ContextType.ALBUM, "spotify:album:xyz", null)
@@ -74,43 +74,28 @@ class TrackMoverTest {
     }
 
     @Test
-    fun `move retries verification once on first failure then succeeds`() = runTest {
-        var getAllCallCount = 0
-        val partialFake = object : FakeSpotifyRepository() {
-            override suspend fun getAllPlaylistItems(playlistId: String): PlaylistContents {
-                getAllCallCount++
-                // First call returns empty; second returns actual contents
-                return if (getAllCallCount == 1 && playlistId == "tgt") {
-                    PlaylistContents("snap", emptySet())
-                } else {
-                    PlaylistContents("snap", playlistContents[playlistId] ?: emptySet())
-                }
-            }
+    fun `move succeeds despite Spotify eventual consistency on target playlist`() = runTest {
+        // Simulate Spotify API lag: playlist query never reflects the newly added track.
+        // The fix trusts the snapshot_id from addToPlaylist instead of re-querying.
+        val lagFake = object : FakeSpotifyRepository() {
+            override suspend fun getAllPlaylistItems(playlistId: String) =
+                PlaylistContents("snap", emptySet()) // always empty
         }
-        val retryMover = TrackMover(partialFake, delayMs = 0, retryDelayMs = 0)
-
-        val result = retryMover.move("spotify:track:abc", "abc", "tgt", albumContext, "user1")
-
-        // addToPlaylist populates playlistContents["tgt"], so second verify call finds it
+        val result = TrackMover(lagFake).move("spotify:track:abc", "abc", "tgt", albumContext, "user1")
         assertTrue(result is MoveResult.AddOnlySuccess)
-        assertEquals(2, getAllCallCount) // tried twice
     }
 
     @Test
-    fun `move returns Failure without deleting when both verification attempts fail`() = runTest {
-        val alwaysEmptyFake = object : FakeSpotifyRepository() {
+    fun `move returns Failure when addToPlaylist returns blank snapshot_id`() = runTest {
+        val blankSnapFake = object : FakeSpotifyRepository() {
             override suspend fun addToPlaylist(playlistId: String, trackUri: String): String {
                 addedItems += playlistId to trackUri
-                // Intentionally do NOT add to playlistContents — verify will always fail
-                return "snap_new"
+                return "" // blank snapshot_id signals unexpected server error
             }
         }
-        val failMover = TrackMover(alwaysEmptyFake, delayMs = 0, retryDelayMs = 0)
-
-        val result = failMover.move("spotify:track:abc", "abc", "tgt", playlistContext, "user1")
-
+        val result = TrackMover(blankSnapFake).move("spotify:track:abc", "abc", "tgt", playlistContext, "user1")
         assertTrue(result is MoveResult.Failure)
-        assertTrue(alwaysEmptyFake.removedItems.isEmpty())
+        assertTrue(blankSnapFake.removedItems.isEmpty())
     }
 
     @Test
@@ -213,7 +198,7 @@ class TrackMoverTest {
                 return PlaylistContents("snap", setOf("spotify:track:real"))
             }
         }
-        val nullMover = TrackMover(nullFake, delayMs = 0, retryDelayMs = 0)
+        val nullMover = TrackMover(nullFake)
         val result = nullMover.move("spotify:track:real", "real", "tgt", albumContext, "u")
 
         // albumContext → AddOnlySuccess after successful verify

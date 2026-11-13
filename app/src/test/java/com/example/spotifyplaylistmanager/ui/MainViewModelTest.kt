@@ -71,7 +71,7 @@ class MainViewModelTest {
 
         val prefsStorage = mockk<PrefsStorage>(relaxed = true)
 
-        val mover = TrackMover(fakeRepo, delayMs = 0, retryDelayMs = 0)
+        val mover = TrackMover(fakeRepo)
         val viewModel = MainViewModel(fakeRepo, mover, authManager, prefsStorage)
 
         viewModel.refreshNowPlaying()
