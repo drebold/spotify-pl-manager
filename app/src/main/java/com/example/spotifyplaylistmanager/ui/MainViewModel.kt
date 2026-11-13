@@ -149,7 +149,7 @@ class MainViewModel(
 
     // ── Now Playing ───────────────────────────────────────────────────────────
 
-    private suspend fun refreshNowPlaying() {
+    internal suspend fun refreshNowPlaying() {
         try {
             val state = repo.getPlaybackState()
             if (state == null || state.item == null) {
@@ -187,10 +187,16 @@ class MainViewModel(
             if (!state.shuffleState && context?.type == ContextType.PLAYLIST && context.playlistId != null) {
                 try {
                     val contents = repo.getAllPlaylistItems(context.playlistId)
-                    val trackList = repo.getPlaylistItems(context.playlistId).items
-                        .mapNotNull { it.track?.toDomain() }
-                    val currentIndex = trackList.indexOfFirst { it.uri == track.uri }
-                    val remaining = if (currentIndex >= 0) trackList.drop(currentIndex + 1) else emptyList()
+                    val allTracks = mutableListOf<TrackInfo>()
+                    var pageOffset = 0
+                    while (true) {
+                        val page = repo.getPlaylistItems(context.playlistId, pageOffset)
+                        page.items.mapNotNull { it.track?.toDomain() }.let { allTracks.addAll(it) }
+                        if (page.next == null) break
+                        pageOffset += 50
+                    }
+                    val currentIndex = allTracks.indexOfFirst { it.uri == track.uri }
+                    val remaining = if (currentIndex >= 0) allTracks.drop(currentIndex + 1) else emptyList()
                     _uiState.update { it.copy(
                         remainingTracks = remaining,
                         isShuffleQueueNotice = false,
