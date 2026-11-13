@@ -74,6 +74,17 @@ class TrackMoverTest {
     }
 
     @Test
+    fun `move skips add and still removes from source when track already in target`() = runTest {
+        fake.playlistContents["tgt"] = mutableSetOf("spotify:track:abc")
+
+        val result = mover.move("spotify:track:abc", "abc", "tgt", playlistContext, "user1")
+
+        assertEquals(MoveResult.Success, result)
+        assertTrue(fake.addedItems.isEmpty()) // not added again
+        assertTrue(fake.removedItems.any { it.first == "src" && it.second == "spotify:track:abc" })
+    }
+
+    @Test
     fun `move succeeds despite Spotify eventual consistency on target playlist`() = runTest {
         // Simulate Spotify API lag: playlist query never reflects the newly added track.
         // The fix trusts the snapshot_id from addToPlaylist instead of re-querying.

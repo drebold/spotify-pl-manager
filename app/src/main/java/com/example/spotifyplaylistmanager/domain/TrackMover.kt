@@ -17,11 +17,13 @@ class TrackMover(private val repo: SpotifyRepository) {
             return MoveResult.Failure("Local files cannot be managed via the Spotify API")
         }
 
-        // A non-blank snapshot_id in Spotify's response confirms the track was persisted.
-        // Re-querying the playlist is unreliable due to Spotify's eventual consistency.
-        val newSnapshotId = repo.addToPlaylist(targetPlaylistId, trackUri)
-        if (newSnapshotId.isBlank()) {
-            return MoveResult.Failure("Could not verify track was added to target playlist")
+        // Skip add if track is already in the target playlist.
+        val targetContents = repo.getAllPlaylistItems(targetPlaylistId)
+        if (trackUri !in targetContents.trackUris) {
+            val newSnapshotId = repo.addToPlaylist(targetPlaylistId, trackUri)
+            if (newSnapshotId.isBlank()) {
+                return MoveResult.Failure("Could not add track to target playlist")
+            }
         }
 
         // Remove from source
