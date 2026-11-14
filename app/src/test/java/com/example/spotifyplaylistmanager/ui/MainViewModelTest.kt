@@ -32,7 +32,7 @@ class MainViewModelTest {
     )
 
     @Test
-    fun `refreshNowPlaying paginates remaining tracks beyond first 50`() = runTest {
+    fun `refreshNowPlaying stores source track count from playlist total`() = runTest {
         val tracks = (1..51).map { makeTrack(it) }
         val playlistId = "src"
 
@@ -43,17 +43,11 @@ class MainViewModelTest {
                 item = tracks[0],
                 context = ContextObject("playlist", "spotify:playlist:$playlistId")
             )
-            override suspend fun getPlaylistItems(id: String, offset: Int) = when (offset) {
-                0 -> PlaylistItemsPageResponse(
-                    items = tracks.take(50).map { PlaylistItemObject(it) },
-                    next = "https://api.spotify.com/v1/playlists/$id/tracks?offset=50"
-                )
-                50 -> PlaylistItemsPageResponse(
-                    items = tracks.drop(50).map { PlaylistItemObject(it) },
-                    next = null
-                )
-                else -> PlaylistItemsPageResponse()
-            }
+            override suspend fun getPlaylistItems(id: String, offset: Int) = PlaylistItemsPageResponse(
+                items = tracks.take(50).map { PlaylistItemObject(it) },
+                next = null,
+                total = 51
+            )
             override suspend fun getAllPlaylistItems(id: String) =
                 PlaylistContents("snap123", tracks.map { it.uri }.toSet())
             override suspend fun getUserPlaylists(offset: Int) = PlaylistsPageResponse()
@@ -68,16 +62,12 @@ class MainViewModelTest {
 
         val authManager = mockk<AuthManager>()
         every { authManager.isLoggedIn() } returns false
-
         val prefsStorage = mockk<PrefsStorage>(relaxed = true)
-
         val mover = TrackMover(fakeRepo)
         val viewModel = MainViewModel(fakeRepo, mover, authManager, prefsStorage)
 
         viewModel.refreshNowPlaying()
 
-        assertEquals(50, viewModel.uiState.value.remainingTracks.size)
-        assertEquals("spotify:track:id2", viewModel.uiState.value.remainingTracks.first().uri)
-        assertEquals("spotify:track:id51", viewModel.uiState.value.remainingTracks.last().uri)
+        assertEquals(51, viewModel.uiState.value.sourceTrackCount)
     }
 }

@@ -5,16 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -30,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -62,95 +62,100 @@ fun MainScreen(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                NowPlayingCard(
-                    nowPlaying = uiState.nowPlaying,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp)
-                )
-
-                // Target playlist row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = uiState.targetPlaylist?.name ?: "No target playlist selected",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
+                // ── Top: now-playing card + source info ───────────────────────
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    NowPlayingCard(
+                        nowPlaying = uiState.nowPlaying,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedButton(
-                        onClick = {
-                            if (uiState.availablePlaylists.isEmpty()) viewModel.loadPlaylists()
-                            showPlaylistPicker = true
-                        },
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text("Change")
+
+                    val sourceLabel = uiState.nowPlaying?.sourceLabel?.takeIf { it.isNotEmpty() }
+                    if (sourceLabel != null) {
+                        val countSuffix = uiState.sourceTrackCount?.let { " · $it tracks" } ?: ""
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "From: $sourceLabel$countSuffix",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
-                // Action buttons
-                val bs = uiState.buttonState
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                // ── Bottom: action buttons + target picker ────────────────────
+                Column(modifier = Modifier.padding(bottom = 20.dp)) {
+                    val bs = uiState.buttonState
+
                     Button(
                         onClick = viewModel::onMove,
                         enabled = bs.moveEnabled,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth().height(72.dp)
                     ) {
                         if (bs.isOperationInProgress) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(26.dp),
+                                strokeWidth = 2.5.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         } else {
-                            Text("Move")
+                            Text("Move", style = MaterialTheme.typography.titleLarge)
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Button(
                         onClick = viewModel::onDelete,
                         enabled = bs.deleteEnabled,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                            disabledContainerColor = MaterialTheme.colorScheme.errorContainer,
+                            disabledContentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     ) {
-                        Text("Delete")
+                        Text("Delete", style = MaterialTheme.typography.titleLarge)
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Button(
                         onClick = viewModel::onSkip,
                         enabled = bs.skipEnabled,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth().height(72.dp)
                     ) {
-                        Text("Skip")
+                        Text("Skip", style = MaterialTheme.typography.titleLarge)
                     }
-                }
 
-                // Remaining tracks
-                if (uiState.isShuffleQueueNotice) {
-                    Text(
-                        text = "Shuffle is on — showing upcoming queue",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                } else if (uiState.remainingTracks.isNotEmpty()) {
-                    Text(
-                        text = "Up next",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                uiState.remainingTracks.forEach { track ->
-                    HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text(track.name, maxLines = 1) },
-                        supportingContent = { Text(track.artists.joinToString(", "), maxLines = 1) }
-                    )
+                    // Target playlist row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = uiState.targetPlaylist?.name ?: "No playlist selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                if (uiState.availablePlaylists.isEmpty()) viewModel.loadPlaylists()
+                                showPlaylistPicker = true
+                            }
+                        ) {
+                            Text("Change")
+                        }
+                    }
                 }
             }
         }

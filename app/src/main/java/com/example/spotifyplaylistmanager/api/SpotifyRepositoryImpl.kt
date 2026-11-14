@@ -42,7 +42,10 @@ class SpotifyRepositoryImpl(private val api: SpotifyApi) : SpotifyRepository {
         snapshotId: String
     ): String = api.removeFromPlaylist(
         playlistId,
-        RemoveFromPlaylistRequest(listOf(TrackUriItem(trackUri)), snapshotId)
+        RemoveFromPlaylistRequest(
+            items = listOf(TrackUriItem(trackUri)),
+            snapshotId = snapshotId.takeIf { it.isNotBlank() }
+        )
     ).snapshotId
 
     override suspend fun addToLikedSongs(trackId: String) {

@@ -157,6 +157,14 @@ class TrackMoverTest {
     }
 
     @Test
+    fun `delete removes from source playlist without snapshotId`() = runTest {
+        val result = mover.delete("spotify:track:abc", "abc", playlistContext, null)
+
+        assertEquals(DeleteResult.Success, result)
+        assertTrue(fake.removedItems.any { it.first == "src" && it.second == "spotify:track:abc" && it.third == "" })
+    }
+
+    @Test
     fun `delete removes from liked songs when context is collection`() = runTest {
         val result = mover.delete("spotify:track:abc", "abc", collectionContext, null)
 

@@ -17,8 +17,10 @@ import com.example.spotifyplaylistmanager.domain.PlaylistInfo
 import com.example.spotifyplaylistmanager.domain.SpotifyRepository
 import com.example.spotifyplaylistmanager.domain.TrackInfo
 import com.example.spotifyplaylistmanager.domain.TrackMover
+import com.example.spotifyplaylistmanager.api.SpotifyErrorBody
 import com.example.spotifyplaylistmanager.api.TrackObject
 import kotlinx.coroutines.Job
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,12 +34,10 @@ data class UiState(
     val isLoggedIn: Boolean = false,
     val nowPlaying: NowPlayingState? = null,
     val sourcePlaylistInfo: PlaylistInfo? = null,
-    val sourceSnapshotId: String? = null,
+    val sourceTrackCount: Int? = null,
     val targetPlaylist: PlaylistInfo? = null,
     val availablePlaylists: List<PlaylistInfo> = emptyList(),
     val isLoadingPlaylists: Boolean = false,
-    val remainingTracks: List<TrackInfo> = emptyList(),
-    val isShuffleQueueNotice: Boolean = false,
     val buttonState: ButtonState = ButtonState(),
     val snackbarMessage: String? = null,
     val currentUserId: String? = null
@@ -156,9 +156,7 @@ class MainViewModel(
                 _uiState.update { it.copy(
                     nowPlaying = null,
                     sourcePlaylistInfo = null,
-                    sourceSnapshotId = null,
-                    remainingTracks = emptyList(),
-                    isShuffleQueueNotice = false,
+                    sourceTrackCount = null,
                     buttonState = ButtonState()
                 )}
                 return
@@ -183,38 +181,16 @@ class MainViewModel(
                 sourcePlaylistInfo = sourcePlaylistInfo,
             )}
 
-            // Remaining tracks and snapshot_id
-            if (!state.shuffleState && context?.type == ContextType.PLAYLIST && context.playlistId != null) {
+            // Source playlist track count
+            if (context?.type == ContextType.PLAYLIST && context.playlistId != null) {
                 try {
-                    val contents = repo.getAllPlaylistItems(context.playlistId)
-                    val allTracks = mutableListOf<TrackInfo>()
-                    var pageOffset = 0
-                    while (true) {
-                        val page = repo.getPlaylistItems(context.playlistId, pageOffset)
-                        page.items.mapNotNull { it.track?.toDomain() }.let { allTracks.addAll(it) }
-                        if (page.next == null) break
-                        pageOffset += 50
-                    }
-                    val currentIndex = allTracks.indexOfFirst { it.uri == track.uri }
-                    val remaining = if (currentIndex >= 0) allTracks.drop(currentIndex + 1) else emptyList()
-                    _uiState.update { it.copy(
-                        remainingTracks = remaining,
-                        isShuffleQueueNotice = false,
-                        sourceSnapshotId = contents.snapshotId
-                    )}
+                    val page = repo.getPlaylistItems(context.playlistId, 0)
+                    _uiState.update { it.copy(sourceTrackCount = page.total) }
                 } catch (_: Exception) {
-                    _uiState.update { it.copy(remainingTracks = emptyList()) }
-                }
-            } else if (state.shuffleState && context?.type == ContextType.PLAYLIST) {
-                try {
-                    val queue = repo.getQueue()
-                    val remaining = queue.queue.map { it.toDomain() }
-                    _uiState.update { it.copy(remainingTracks = remaining, isShuffleQueueNotice = true) }
-                } catch (_: Exception) {
-                    _uiState.update { it.copy(remainingTracks = emptyList(), isShuffleQueueNotice = true) }
+                    _uiState.update { it.copy(sourceTrackCount = null) }
                 }
             } else {
-                _uiState.update { it.copy(remainingTracks = emptyList(), isShuffleQueueNotice = false) }
+                _uiState.update { it.copy(sourceTrackCount = null) }
             }
 
             updateButtonState()
@@ -257,7 +233,7 @@ class MainViewModel(
                 }
             } catch (e: HttpException) {
                 if (e.code() == 403) showSnackbar("Spotify Premium is required")
-                else showSnackbar("Error: ${e.message()}")
+                else showSnackbar("Error: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Error: ${e.message}")
             } finally {
@@ -271,12 +247,11 @@ class MainViewModel(
         val state = _uiState.value
         val track = state.nowPlaying?.track ?: return
         val context = state.nowPlaying.context
-        val snapshotId = state.sourceSnapshotId
 
         viewModelScope.launch {
             setOperationInProgress(true)
             try {
-                val result = mover.delete(track.uri, track.id, context, snapshotId)
+                val result = mover.delete(track.uri, track.id, context, null)
                 when (result) {
                     is DeleteResult.Success -> showSnackbar("Track removed")
                     is DeleteResult.NotApplicable -> showSnackbar("Cannot remove from this source")
@@ -284,7 +259,7 @@ class MainViewModel(
                 }
             } catch (e: HttpException) {
                 if (e.code() == 403) showSnackbar("Spotify Premium is required")
-                else showSnackbar("Error: ${e.message()}")
+                else showSnackbar("Error: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Error: ${e.message}")
             } finally {
@@ -302,7 +277,7 @@ class MainViewModel(
                 delay(600)
             } catch (e: HttpException) {
                 if (e.code() == 403) showSnackbar("Spotify Premium is required for skip")
-                else showSnackbar("Skip failed: ${e.message()}")
+                else showSnackbar("Skip failed: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Skip failed: ${e.message}")
             } finally {
@@ -320,6 +295,15 @@ class MainViewModel(
 
     private fun showSnackbar(message: String) {
         _uiState.update { it.copy(snackbarMessage = message) }
+    }
+
+    private fun HttpException.spotifyMessage(): String {
+        val body = response()?.errorBody()?.string() ?: return "HTTP ${code()}"
+        return try {
+            errorJson.decodeFromString<SpotifyErrorBody>(body).error.message
+        } catch (_: Exception) {
+            "HTTP ${code()}"
+        }
     }
 
     private fun setOperationInProgress(inProgress: Boolean) {
@@ -357,6 +341,8 @@ class MainViewModel(
     }
 
     companion object {
+        private val errorJson = Json { ignoreUnknownKeys = true }
+
         fun factory(
             repo: SpotifyRepository,
             mover: TrackMover,

@@ -54,9 +54,8 @@ class TrackMover(private val repo: SpotifyRepository) {
         return when (context?.type) {
             ContextType.PLAYLIST -> {
                 val sourceId = context.playlistId
-                val snap = snapshotId
-                if (sourceId != null && snap != null) {
-                    repo.removeFromPlaylist(sourceId, trackUri, snap)
+                if (sourceId != null) {
+                    repo.removeFromPlaylist(sourceId, trackUri, snapshotId ?: "")
                     DeleteResult.Success
                 } else {
                     DeleteResult.NotApplicable

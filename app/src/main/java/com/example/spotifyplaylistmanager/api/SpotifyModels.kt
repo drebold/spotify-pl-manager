@@ -1,5 +1,7 @@
 package com.example.spotifyplaylistmanager.api
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -8,10 +10,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AddToPlaylistRequest(val uris: List<String>)
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class RemoveFromPlaylistRequest(
     val items: List<TrackUriItem>,
-    @SerialName("snapshot_id") val snapshotId: String
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @SerialName("snapshot_id") val snapshotId: String? = null
 )
 
 @Serializable
