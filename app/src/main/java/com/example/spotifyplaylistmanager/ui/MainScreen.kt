@@ -32,6 +32,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.spotifyplaylistmanager.domain.NowPlayingState
+import com.example.spotifyplaylistmanager.domain.PlaybackContext
+import com.example.spotifyplaylistmanager.domain.ContextType
+import com.example.spotifyplaylistmanager.domain.TrackInfo
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.spotifyplaylistmanager.ui.theme.SpotifyPlaylistManagerTheme
 
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
@@ -93,7 +99,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     Button(
                         onClick = viewModel::onMove,
                         enabled = bs.moveEnabled,
-                        modifier = Modifier.fillMaxWidth().height(72.dp)
+                        modifier = Modifier.fillMaxWidth().height(130.dp)
                     ) {
                         if (bs.isOperationInProgress) {
                             CircularProgressIndicator(
@@ -111,7 +117,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     Button(
                         onClick = viewModel::onDelete,
                         enabled = bs.deleteEnabled,
-                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                        modifier = Modifier.fillMaxWidth().height(130.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
                             contentColor = MaterialTheme.colorScheme.onError,
@@ -127,7 +133,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     Button(
                         onClick = viewModel::onSkip,
                         enabled = bs.skipEnabled,
-                        modifier = Modifier.fillMaxWidth().height(72.dp)
+                        modifier = Modifier.fillMaxWidth().height(130.dp)
                     ) {
                         Text("Skip", style = MaterialTheme.typography.titleLarge)
                     }
@@ -168,5 +174,94 @@ fun MainScreen(viewModel: MainViewModel) {
             onSelect = { viewModel.selectTargetPlaylist(it) },
             onDismiss = { showPlaylistPicker = false }
         )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+private fun MainScreenPreview() {
+    val fakeNowPlaying = NowPlayingState(
+        track = TrackInfo(
+            id = "1",
+            uri = "spotify:track:1",
+            name = "I Remember You",
+            artists = listOf("Lauren Spring"),
+            albumName = "Unforgettable You",
+            albumArtUrl = null,
+            isLocal = false
+        ),
+        context = PlaybackContext(ContextType.PLAYLIST, "spotify:playlist:abc", "abc"),
+        sourceLabel = "2025",
+        isShuffling = false
+    )
+    val fakeState = UiState(
+        isLoggedIn = true,
+        nowPlaying = fakeNowPlaying,
+        sourceTrackCount = 137,
+        targetPlaylist = com.example.spotifyplaylistmanager.domain.PlaylistInfo(
+            id = "xyz", name = "2026", snapshotId = "", ownerId = "me", isCollaborative = false
+        ),
+        buttonState = ButtonState(
+            moveEnabled = true, deleteEnabled = true, skipEnabled = true
+        )
+    )
+    SpotifyPlaylistManagerTheme {
+        // Render the logged-in layout directly with fake state
+        androidx.compose.material3.Scaffold { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    NowPlayingCard(
+                        nowPlaying = fakeState.nowPlaying,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val sourceLabel = fakeState.nowPlaying?.sourceLabel?.takeIf { it.isNotEmpty() }
+                    if (sourceLabel != null) {
+                        val countSuffix = fakeState.sourceTrackCount?.let { " · $it tracks" } ?: ""
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "From: $sourceLabel$countSuffix",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Column(modifier = Modifier.padding(bottom = 20.dp)) {
+                    val bs = fakeState.buttonState
+                    Button(onClick = {}, enabled = bs.moveEnabled,
+                        modifier = Modifier.fillMaxWidth().height(130.dp)) {
+                        Text("Move", style = MaterialTheme.typography.titleLarge)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(onClick = {}, enabled = bs.deleteEnabled,
+                        modifier = Modifier.fillMaxWidth().height(130.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )) {
+                        Text("Delete", style = MaterialTheme.typography.titleLarge)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(onClick = {}, enabled = bs.skipEnabled,
+                        modifier = Modifier.fillMaxWidth().height(130.dp)) {
+                        Text("Skip", style = MaterialTheme.typography.titleLarge)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = fakeState.targetPlaylist?.name ?: "No playlist selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp))
+                        OutlinedButton(onClick = {}) { Text("Change") }
+                    }
+                }
+            }
+        }
     }
 }

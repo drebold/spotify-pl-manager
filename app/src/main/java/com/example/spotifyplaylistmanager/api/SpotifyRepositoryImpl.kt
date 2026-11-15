@@ -1,7 +1,10 @@
 package com.example.spotifyplaylistmanager.api
 
+import android.util.Log
 import com.example.spotifyplaylistmanager.domain.PlaylistContents
 import com.example.spotifyplaylistmanager.domain.SpotifyRepository
+
+private const val TAG = "SpotifyRepo"
 
 class SpotifyRepositoryImpl(private val api: SpotifyApi) : SpotifyRepository {
 
@@ -22,14 +25,17 @@ class SpotifyRepositoryImpl(private val api: SpotifyApi) : SpotifyRepository {
         var snapshotId = ""
         while (true) {
             val page = api.getPlaylistItems(playlistId, offset = offset)
+            Log.d(TAG, "getAllPlaylistItems($playlistId) offset=$offset: total=${page.total} items=${page.items.size} next=${page.next != null}")
             snapshotId = page.snapshotId
             page.items.forEach { item ->
-                val uri = item.track?.uri
+                val uri = item.item?.uri
+                Log.d(TAG, "  item: track=${item.item?.name} uri=$uri")
                 if (uri != null) uris.add(uri)
             }
             if (page.next == null) break
             offset += 50
         }
+        Log.d(TAG, "getAllPlaylistItems($playlistId) done: ${uris.size} uris collected")
         return PlaylistContents(snapshotId = snapshotId, trackUris = uris)
     }
 
@@ -49,11 +55,13 @@ class SpotifyRepositoryImpl(private val api: SpotifyApi) : SpotifyRepository {
     ).snapshotId
 
     override suspend fun addToLikedSongs(trackId: String) {
-        api.addToLikedSongs(LikedSongsRequest(listOf(trackId)))
+        val response = api.addToLikedSongs(LikedSongsRequest(listOf(trackId)))
+        if (!response.isSuccessful) throw retrofit2.HttpException(response)
     }
 
     override suspend fun removeFromLikedSongs(trackId: String) {
-        api.removeFromLikedSongs(LikedSongsRequest(listOf(trackId)))
+        val response = api.removeFromLikedSongs(LikedSongsRequest(listOf(trackId)))
+        if (!response.isSuccessful) throw retrofit2.HttpException(response)
     }
 
     override suspend fun getCurrentUser(): UserResponse = api.getCurrentUser()

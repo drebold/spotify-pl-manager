@@ -37,9 +37,9 @@ data class PlayerStateResponse(
 
 @Serializable
 data class TrackObject(
-    val id: String,
-    val uri: String,
-    val name: String,
+    val id: String = "",
+    val uri: String = "",
+    val name: String = "",
     val artists: List<ArtistObject> = emptyList(),
     val album: AlbumObject = AlbumObject(),
     @SerialName("is_local") val isLocal: Boolean = false
@@ -98,7 +98,7 @@ data class PlaylistItemsPageResponse(
 )
 
 @Serializable
-data class PlaylistItemObject(val track: TrackObject? = null)
+data class PlaylistItemObject(val item: TrackObject? = null)
 
 @Serializable
 data class SnapshotResponse(@SerialName("snapshot_id") val snapshotId: String)

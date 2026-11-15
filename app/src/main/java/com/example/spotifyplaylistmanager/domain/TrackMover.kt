@@ -1,5 +1,8 @@
 package com.example.spotifyplaylistmanager.domain
 
+import android.util.Log
+
+private const val TAG = "TrackMover"
 
 class TrackMover(private val repo: SpotifyRepository) {
 
@@ -18,9 +21,12 @@ class TrackMover(private val repo: SpotifyRepository) {
         }
 
         // Skip add if track is already in the target playlist.
+        Log.d(TAG, "move() start: trackUri=$trackUri target=$targetPlaylistId context=${context?.type} sourceId=${context?.playlistId}")
         val targetContents = repo.getAllPlaylistItems(targetPlaylistId)
+        Log.d(TAG, "target has ${targetContents.trackUris.size} tracks, alreadyContains=${trackUri in targetContents.trackUris}")
         if (trackUri !in targetContents.trackUris) {
             val newSnapshotId = repo.addToPlaylist(targetPlaylistId, trackUri)
+            Log.d(TAG, "addToPlaylist returned snapshotId='$newSnapshotId'")
             if (newSnapshotId.isBlank()) {
                 return MoveResult.Failure("Could not add track to target playlist")
             }
@@ -30,10 +36,15 @@ class TrackMover(private val repo: SpotifyRepository) {
         return when (context?.type) {
             ContextType.PLAYLIST -> {
                 val sourceId = context.playlistId
+                Log.d(TAG, "source playlist remove: sourceId=$sourceId")
                 if (sourceId != null) {
                     // Fetch source snapshot_id fresh to avoid race conditions
                     val sourceContents = repo.getAllPlaylistItems(sourceId)
+                    Log.d(TAG, "source has ${sourceContents.trackUris.size} tracks, snapshotId='${sourceContents.snapshotId}', calling removeFromPlaylist")
                     repo.removeFromPlaylist(sourceId, trackUri, sourceContents.snapshotId)
+                    Log.d(TAG, "removeFromPlaylist completed successfully")
+                } else {
+                    Log.w(TAG, "sourceId is null — skipping remove")
                 }
                 MoveResult.Success
             }

@@ -2,6 +2,7 @@ package com.example.spotifyplaylistmanager.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +46,7 @@ fun PlaylistPickerSheet(
                 modifier = Modifier.padding(16.dp)
             )
         } else {
-            LazyColumn {
+            LazyColumn(modifier = Modifier.fillMaxHeight(0.6f)) {
                 items(playlists) { playlist ->
                     ListItem(
                         headlineContent = { Text(playlist.name) },

@@ -21,7 +21,7 @@ class AuthManager(private val tokenStorage: TokenStorage) {
     private var pendingState: String? = null
 
     companion object {
-        private const val CLIENT_ID = "4f594fed820a4305aad21aae910f273b"
+        private const val CLIENT_ID = "0e20f98f65704eb9b09be9bd71291c93"
         private const val REDIRECT_URI = "myapp://callback"
         private const val AUTH_URL = "https://accounts.spotify.com/authorize"
         private const val TOKEN_URL = "https://accounts.spotify.com/api/token"

@@ -74,6 +74,7 @@ class MainViewModel(
     fun startPolling() {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
+            delay(2000) // let loadPlaylists() complete first to avoid rate limiting
             while (isActive) {
                 refreshNowPlaying()
                 delay(4000)
@@ -176,20 +177,23 @@ class MainViewModel(
                 isShuffling = state.shuffleState
             )
 
+            val previousSourceId = _uiState.value.sourcePlaylistInfo?.id
+            val newSourceId = sourcePlaylistInfo?.id
+
             _uiState.update { it.copy(
                 nowPlaying = nowPlaying,
                 sourcePlaylistInfo = sourcePlaylistInfo,
             )}
 
-            // Source playlist track count
-            if (context?.type == ContextType.PLAYLIST && context.playlistId != null) {
+            // Only re-fetch track count when the source playlist changes
+            if (context?.type == ContextType.PLAYLIST && context.playlistId != null && newSourceId != previousSourceId) {
                 try {
                     val page = repo.getPlaylistItems(context.playlistId, 0)
                     _uiState.update { it.copy(sourceTrackCount = page.total) }
                 } catch (_: Exception) {
                     _uiState.update { it.copy(sourceTrackCount = null) }
                 }
-            } else {
+            } else if (context?.type != ContextType.PLAYLIST) {
                 _uiState.update { it.copy(sourceTrackCount = null) }
             }
 
@@ -232,7 +236,7 @@ class MainViewModel(
                     is MoveResult.Failure -> showSnackbar(result.message)
                 }
             } catch (e: HttpException) {
-                if (e.code() == 403) showSnackbar("Spotify Premium is required")
+                if (e.code() == 403) showSnackbar("No permission to modify this playlist")
                 else showSnackbar("Error: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Error: ${e.message}")
@@ -258,7 +262,7 @@ class MainViewModel(
                     is DeleteResult.Failure -> showSnackbar(result.message)
                 }
             } catch (e: HttpException) {
-                if (e.code() == 403) showSnackbar("Spotify Premium is required")
+                if (e.code() == 403) showSnackbar("No permission to modify this playlist")
                 else showSnackbar("Error: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Error: ${e.message}")
@@ -276,7 +280,7 @@ class MainViewModel(
                 repo.skipToNext()
                 delay(600)
             } catch (e: HttpException) {
-                if (e.code() == 403) showSnackbar("Spotify Premium is required for skip")
+                if (e.code() == 403) showSnackbar("Spotify Premium required for skip")
                 else showSnackbar("Skip failed: ${e.spotifyMessage()}")
             } catch (e: Exception) {
                 showSnackbar("Skip failed: ${e.message}")
