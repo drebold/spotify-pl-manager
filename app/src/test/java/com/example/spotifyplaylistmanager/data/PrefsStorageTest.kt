@@ -34,4 +34,12 @@ class PrefsStorageTest {
         prefs.saveClientId("   ")
         assertNull(prefs.getClientId())
     }
+
+    @Test
+    fun `clearClientId removes a previously saved clientId`() {
+        val prefs = storage()
+        prefs.saveClientId("abc123")
+        prefs.clearClientId()
+        assertNull(prefs.getClientId())
+    }
 }

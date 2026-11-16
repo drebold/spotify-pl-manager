@@ -5,9 +5,14 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -23,9 +28,11 @@ import com.example.spotifyplaylistmanager.ui.MainScreen
 import com.example.spotifyplaylistmanager.ui.MainViewModel
 import com.example.spotifyplaylistmanager.ui.SetupScreen
 import com.example.spotifyplaylistmanager.ui.theme.SpotifyPlaylistManagerTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 sealed class AppScreen {
+    object Loading : AppScreen()
     object Setup : AppScreen()
     object Login : AppScreen()
     object Main : AppScreen()
@@ -57,7 +64,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var prefsStorage: PrefsStorage
     private lateinit var viewModel: MainViewModel
 
-    private var screen by mutableStateOf<AppScreen>(AppScreen.Login)
+    private var screen by mutableStateOf<AppScreen>(AppScreen.Loading)
+    private var authCheckJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,9 +83,7 @@ class MainActivity : ComponentActivity() {
             MainViewModel.factory(repo, mover, authManager, prefsStorage)
         )[MainViewModel::class.java]
 
-        lifecycleScope.launch {
-            screen = checkAuthState(prefsStorage, authManager)
-        }
+        resolveAuthState()
 
         // Handle cold-start auth callback
         intent?.data?.let { uri ->
@@ -94,38 +100,34 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SpotifyPlaylistManagerTheme {
+                val onChangeClientId = {
+                    authManager.logout()
+                    prefsStorage.clearClientId()
+                    viewModel.onLogout()
+                    screen = AppScreen.Setup
+                }
                 when (screen) {
+                    AppScreen.Loading -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                     AppScreen.Setup -> SetupScreen { clientId ->
                         prefsStorage.saveClientId(clientId)
                         screen = AppScreen.Login
                     }
                     AppScreen.Login -> MainScreen(
                         viewModel = viewModel,
-                        onChangeClientId = {
-                            authManager.logout()
-                            prefsStorage.saveClientId("")
-                            screen = AppScreen.Setup
-                        }
+                        onChangeClientId = onChangeClientId
                     )
                     AppScreen.Main -> MainScreen(
                         viewModel = viewModel,
-                        onChangeClientId = {
-                            authManager.logout()
-                            prefsStorage.saveClientId("")
-                            screen = AppScreen.Setup
-                        }
+                        onChangeClientId = onChangeClientId
                     )
                     AppScreen.AuthFailed -> AuthFailedScreen(
-                        onChangeClientId = {
-                            authManager.logout()
-                            prefsStorage.saveClientId("")
-                            screen = AppScreen.Setup
-                        },
-                        onRetry = {
-                            lifecycleScope.launch {
-                                screen = checkAuthState(prefsStorage, authManager)
-                            }
-                        }
+                        onChangeClientId = onChangeClientId,
+                        onRetry = { resolveAuthState() }
                     )
                 }
             }
@@ -139,7 +141,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun resolveAuthState() {
+        authCheckJob?.cancel()
+        authCheckJob = lifecycleScope.launch {
+            screen = checkAuthState(prefsStorage, authManager)
+        }
+    }
+
     private fun handleAuthCallback(uri: Uri) {
+        authCheckJob?.cancel()
         lifecycleScope.launch {
             val success = authManager.handleCallback(uri)
             if (success) {

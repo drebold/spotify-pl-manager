@@ -19,6 +19,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MainViewModelTest {
@@ -70,5 +71,32 @@ class MainViewModelTest {
         viewModel.refreshNowPlaying()
 
         assertEquals(51, viewModel.uiState.value.sourceTrackCount)
+    }
+
+    @Test
+    fun `onLogout resets isLoggedIn to false`() = runTest {
+        val authManager = mockk<AuthManager>()
+        every { authManager.isLoggedIn() } returns false
+        val prefsStorage = mockk<PrefsStorage>(relaxed = true)
+        val fakeRepo = object : SpotifyRepository {
+            override suspend fun getPlaybackState() = null
+            override suspend fun getPlaylistItems(id: String, offset: Int) = PlaylistItemsPageResponse()
+            override suspend fun getAllPlaylistItems(id: String) = PlaylistContents("", emptySet())
+            override suspend fun getUserPlaylists(offset: Int) = PlaylistsPageResponse()
+            override suspend fun addToPlaylist(playlistId: String, trackUri: String) = ""
+            override suspend fun removeFromPlaylist(playlistId: String, trackUri: String, snapshotId: String) = ""
+            override suspend fun addToLikedSongs(trackId: String) {}
+            override suspend fun removeFromLikedSongs(trackId: String) {}
+            override suspend fun getCurrentUser() = UserResponse("user1")
+            override suspend fun getQueue() = QueueResponse()
+            override suspend fun skipToNext() {}
+            override suspend fun getPlaylistSnapshotId(playlistId: String) = ""
+        }
+        val mover = TrackMover(fakeRepo)
+        val viewModel = MainViewModel(fakeRepo, mover, authManager, prefsStorage)
+
+        viewModel.onLogout()
+
+        assertFalse(viewModel.uiState.value.isLoggedIn)
     }
 }

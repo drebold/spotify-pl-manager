@@ -24,6 +24,10 @@ class PrefsStorage internal constructor(private val prefs: SharedPreferences) {
 
     fun getClientId(): String? = prefs.getString(KEY_CLIENT_ID, null).takeIf { !it.isNullOrBlank() }
 
+    fun clearClientId() {
+        prefs.edit().remove(KEY_CLIENT_ID).apply()
+    }
+
     companion object {
         private const val KEY_LAST_PLAYLIST = "last_playlist_id"
         private const val KEY_CLIENT_ID = "client_id"

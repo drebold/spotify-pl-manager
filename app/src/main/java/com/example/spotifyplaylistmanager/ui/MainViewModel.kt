@@ -104,6 +104,13 @@ class MainViewModel(
         viewModelScope.launch { loadUserAndPlaylists() }
     }
 
+    fun onLogout() {
+        stopPolling()
+        _uiState.update {
+            UiState(isLoggedIn = false)
+        }
+    }
+
     // ── Data loading ──────────────────────────────────────────────────────────
 
     private suspend fun loadUserAndPlaylists() {
