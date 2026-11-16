@@ -46,7 +46,13 @@ internal suspend fun checkAuthState(
     return try {
         val token = authManager.getValidAccessToken()
         if (token != null) {
-            AppScreen.Main
+            if (prefsStorage.getClientId() == null) {
+                // Stale token from before user entered a client ID (e.g. upgrade from hardcoded version)
+                authManager.logout()
+                AppScreen.Setup
+            } else {
+                AppScreen.Main
+            }
         } else if (prefsStorage.getClientId() == null) {
             AppScreen.Setup
         } else {
