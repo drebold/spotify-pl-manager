@@ -14,17 +14,23 @@ class TrackMover(private val repo: SpotifyRepository) {
         trackId: String,
         targetPlaylistId: String,
         context: PlaybackContext?,
-        userId: String
+        userId: String,
+        cachedTargetUris: Set<String> = emptySet()
     ): MoveResult {
         if (trackUri.startsWith("spotify:local:")) {
             return MoveResult.Failure("Local files cannot be managed via the Spotify API")
         }
 
-        // Skip add if track is already in the target playlist.
+        // Use cached URIs if available, otherwise fetch from API
         Log.d(TAG, "move() start: trackUri=$trackUri target=$targetPlaylistId context=${context?.type} sourceId=${context?.playlistId}")
-        val targetContents = repo.getAllPlaylistItems(targetPlaylistId)
-        Log.d(TAG, "target has ${targetContents.trackUris.size} tracks, alreadyContains=${trackUri in targetContents.trackUris}")
-        if (trackUri !in targetContents.trackUris) {
+        val knownTargetUris = if (cachedTargetUris.isNotEmpty()) {
+            cachedTargetUris
+        } else {
+            val contents = repo.getAllPlaylistItems(targetPlaylistId)
+            contents.trackUris
+        }
+        Log.d(TAG, "target has ${knownTargetUris.size} tracks, alreadyContains=${trackUri in knownTargetUris}")
+        if (trackUri !in knownTargetUris) {
             val newSnapshotId = repo.addToPlaylist(targetPlaylistId, trackUri)
             Log.d(TAG, "addToPlaylist returned snapshotId='$newSnapshotId'")
             if (newSnapshotId.isBlank()) {
@@ -32,25 +38,26 @@ class TrackMover(private val repo: SpotifyRepository) {
             }
         }
 
+        val alreadyExisted = trackUri in knownTargetUris
+
         // Remove from source
         return when (context?.type) {
             ContextType.PLAYLIST -> {
                 val sourceId = context.playlistId
                 Log.d(TAG, "source playlist remove: sourceId=$sourceId")
                 if (sourceId != null) {
-                    // Fetch source snapshot_id fresh to avoid race conditions
-                    val sourceContents = repo.getAllPlaylistItems(sourceId)
-                    Log.d(TAG, "source has ${sourceContents.trackUris.size} tracks, snapshotId='${sourceContents.snapshotId}', calling removeFromPlaylist")
-                    repo.removeFromPlaylist(sourceId, trackUri, sourceContents.snapshotId)
+                    val snapshotId = repo.getPlaylistSnapshotId(sourceId)
+                    Log.d(TAG, "snapshotId='$snapshotId', calling removeFromPlaylist")
+                    repo.removeFromPlaylist(sourceId, trackUri, snapshotId)
                     Log.d(TAG, "removeFromPlaylist completed successfully")
                 } else {
                     Log.w(TAG, "sourceId is null — skipping remove")
                 }
-                MoveResult.Success
+                if (alreadyExisted) MoveResult.AlreadyExists else MoveResult.Success
             }
             ContextType.COLLECTION -> {
                 repo.removeFromLikedSongs(trackId)
-                MoveResult.Success
+                if (alreadyExisted) MoveResult.AlreadyExists else MoveResult.Success
             }
             else -> MoveResult.AddOnlySuccess(contextLabel(context))
         }

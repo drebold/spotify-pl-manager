@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ClaudeCodeEditorTabs">
-    <option name="activeSessionId" value="742e8681-21bb-428d-99aa-dcaeccd67346" />
+    <option name="activeSessionId" value="1fb38b37-93b1-41e7-ac1a-0fbe374b9818" />
     <option name="openSessionIds">
       <list>
-        <option value="742e8681-21bb-428d-99aa-dcaeccd67346" />
+        <option value="1fb38b37-93b1-41e7-ac1a-0fbe374b9818" />
       </list>
     </option>
     <option name="sessionPaths">
       <map>
-        <entry key="742e8681-21bb-428d-99aa-dcaeccd67346" value="/sessions/79aaf539-f2b7-48d2-b179-4b99a9c499ae" />
+        <entry key="1fb38b37-93b1-41e7-ac1a-0fbe374b9818" value="/sessions/79aaf539-f2b7-48d2-b179-4b99a9c499ae" />
       </map>
     </option>
     <option name="sessionTitles">
       <map>
-        <entry key="742e8681-21bb-428d-99aa-dcaeccd67346" value="Redesign the UI to this" />
+        <entry key="1fb38b37-93b1-41e7-ac1a-0fbe374b9818" value="Run a count on logcat, to check how many heavy api" />
       </map>
     </option>
   </component>

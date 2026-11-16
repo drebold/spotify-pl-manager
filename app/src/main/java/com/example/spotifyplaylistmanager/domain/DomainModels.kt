@@ -40,6 +40,7 @@ data class PlaylistContents(
 
 sealed class MoveResult {
     object Success : MoveResult()
+    object AlreadyExists : MoveResult()
     data class AddOnlySuccess(val reason: String) : MoveResult()
     data class Failure(val message: String) : MoveResult()
 }

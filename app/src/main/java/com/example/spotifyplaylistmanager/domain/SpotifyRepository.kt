@@ -11,6 +11,7 @@ interface SpotifyRepository {
     suspend fun getUserPlaylists(offset: Int = 0): PlaylistsPageResponse
     suspend fun getPlaylistItems(playlistId: String, offset: Int = 0): PlaylistItemsPageResponse
     suspend fun getAllPlaylistItems(playlistId: String): PlaylistContents
+    suspend fun getPlaylistSnapshotId(playlistId: String): String
     suspend fun addToPlaylist(playlistId: String, trackUri: String): String
     suspend fun removeFromPlaylist(playlistId: String, trackUri: String, snapshotId: String): String
     suspend fun addToLikedSongs(trackId: String)

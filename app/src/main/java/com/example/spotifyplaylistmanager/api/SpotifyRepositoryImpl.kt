@@ -39,6 +39,9 @@ class SpotifyRepositoryImpl(private val api: SpotifyApi) : SpotifyRepository {
         return PlaylistContents(snapshotId = snapshotId, trackUris = uris)
     }
 
+    override suspend fun getPlaylistSnapshotId(playlistId: String): String =
+        api.getPlaylistItems(playlistId, limit = 1, offset = 0).snapshotId
+
     override suspend fun addToPlaylist(playlistId: String, trackUri: String): String =
         api.addToPlaylist(playlistId, AddToPlaylistRequest(listOf(trackUri))).snapshotId
 

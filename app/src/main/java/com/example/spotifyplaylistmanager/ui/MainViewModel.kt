@@ -61,6 +61,8 @@ class MainViewModel(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var pollingJob: Job? = null
+    private var targetPlaylistUris: Set<String> = emptySet()
+    private var targetPlaylistUrisId: String? = null
 
     init {
         if (authManager.isLoggedIn()) {
@@ -77,9 +79,13 @@ class MainViewModel(
             delay(2000) // let loadPlaylists() complete first to avoid rate limiting
             while (isActive) {
                 refreshNowPlaying()
-                delay(4000)
+                delay(30_000)
             }
         }
+    }
+
+    private fun refreshNowPlayingAfterAction() {
+        viewModelScope.launch { refreshNowPlaying() }
     }
 
     fun stopPolling() {
@@ -140,12 +146,26 @@ class MainViewModel(
         val lastId = prefsStorage.getLastPlaylistId() ?: return
         val playlist = _uiState.value.availablePlaylists.find { it.id == lastId } ?: return
         _uiState.update { it.copy(targetPlaylist = playlist) }
+        viewModelScope.launch { loadTargetPlaylistUris(playlist.id) }
     }
 
     fun selectTargetPlaylist(playlist: PlaylistInfo) {
         prefsStorage.saveLastPlaylistId(playlist.id)
         _uiState.update { it.copy(targetPlaylist = playlist) }
         updateButtonState()
+        viewModelScope.launch { loadTargetPlaylistUris(playlist.id) }
+    }
+
+    private suspend fun loadTargetPlaylistUris(playlistId: String) {
+        if (targetPlaylistUrisId == playlistId) return
+        try {
+            val contents = repo.getAllPlaylistItems(playlistId)
+            targetPlaylistUris = contents.trackUris
+            targetPlaylistUrisId = playlistId
+        } catch (_: Exception) {
+            targetPlaylistUris = emptySet()
+            targetPlaylistUrisId = null
+        }
     }
 
     // ── Now Playing ───────────────────────────────────────────────────────────
@@ -220,19 +240,31 @@ class MainViewModel(
     // ── Actions ───────────────────────────────────────────────────────────────
 
     fun onMove() {
-        val state = _uiState.value
-        val track = state.nowPlaying?.track ?: return
-        val context = state.nowPlaying.context
-        val target = state.targetPlaylist ?: return
-        val userId = state.currentUserId ?: return
+        val target = _uiState.value.targetPlaylist ?: return
+        val userId = _uiState.value.currentUserId ?: return
 
         viewModelScope.launch {
             setOperationInProgress(true)
             try {
-                val result = mover.move(track.uri, track.id, target.id, context, userId)
+                refreshNowPlaying()
+                val state = _uiState.value
+                val track = state.nowPlaying?.track ?: return@launch
+                val context = state.nowPlaying.context
+                val result = mover.move(track.uri, track.id, target.id, context, userId, targetPlaylistUris)
                 when (result) {
-                    is MoveResult.Success -> showSnackbar("Moved to ${target.name}")
-                    is MoveResult.AddOnlySuccess -> showSnackbar("Added to ${target.name}. ${result.reason}")
+                    is MoveResult.Success -> {
+                        targetPlaylistUris = targetPlaylistUris + track.uri
+                        decrementSourceTrackCount()
+                        showSnackbar("Moved to ${target.name}")
+                    }
+                    is MoveResult.AlreadyExists -> {
+                        decrementSourceTrackCount()
+                        showSnackbar("Already in ${target.name} — removed from source")
+                    }
+                    is MoveResult.AddOnlySuccess -> {
+                        targetPlaylistUris = targetPlaylistUris + track.uri
+                        showSnackbar("Added to ${target.name}. ${result.reason}")
+                    }
                     is MoveResult.Failure -> showSnackbar(result.message)
                 }
             } catch (e: HttpException) {
@@ -242,22 +274,25 @@ class MainViewModel(
                 showSnackbar("Error: ${e.message}")
             } finally {
                 setOperationInProgress(false)
-                refreshNowPlaying()
+                refreshNowPlayingAfterAction()
             }
         }
     }
 
     fun onDelete() {
-        val state = _uiState.value
-        val track = state.nowPlaying?.track ?: return
-        val context = state.nowPlaying.context
-
         viewModelScope.launch {
             setOperationInProgress(true)
             try {
+                refreshNowPlaying()
+                val state = _uiState.value
+                val track = state.nowPlaying?.track ?: return@launch
+                val context = state.nowPlaying.context
                 val result = mover.delete(track.uri, track.id, context, null)
                 when (result) {
-                    is DeleteResult.Success -> showSnackbar("Track removed")
+                    is DeleteResult.Success -> {
+                        decrementSourceTrackCount()
+                        showSnackbar("Track removed")
+                    }
                     is DeleteResult.NotApplicable -> showSnackbar("Cannot remove from this source")
                     is DeleteResult.Failure -> showSnackbar(result.message)
                 }
@@ -268,7 +303,7 @@ class MainViewModel(
                 showSnackbar("Error: ${e.message}")
             } finally {
                 setOperationInProgress(false)
-                refreshNowPlaying()
+                refreshNowPlayingAfterAction()
             }
         }
     }
@@ -286,7 +321,7 @@ class MainViewModel(
                 showSnackbar("Skip failed: ${e.message}")
             } finally {
                 setOperationInProgress(false)
-                refreshNowPlaying()
+                refreshNowPlayingAfterAction()
             }
         }
     }
@@ -299,6 +334,11 @@ class MainViewModel(
 
     private fun showSnackbar(message: String) {
         _uiState.update { it.copy(snackbarMessage = message) }
+    }
+
+    private fun decrementSourceTrackCount() {
+        val current = _uiState.value.sourceTrackCount ?: return
+        if (current > 0) _uiState.update { it.copy(sourceTrackCount = current - 1) }
     }
 
     private fun HttpException.spotifyMessage(): String {
