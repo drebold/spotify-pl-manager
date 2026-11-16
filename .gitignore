@@ -7,9 +7,20 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceHardwareInput.xml
+/.idea/deviceManager.xml
+/.idea/runConfigurations.xml
+/.idea/compiler.xml
+/.idea/AndroidProjectSystem.xml
+/.idea/claudeCodeEditorTabs.xml
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# Superpowers / AI planning artifacts
+docs/superpowers/
+.superpowers/
