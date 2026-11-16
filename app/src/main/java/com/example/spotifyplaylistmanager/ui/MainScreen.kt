@@ -40,7 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.spotifyplaylistmanager.ui.theme.SpotifyPlaylistManagerTheme
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(viewModel: MainViewModel, onChangeClientId: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showPlaylistPicker by remember { mutableStateOf(false) }
@@ -59,8 +59,15 @@ fun MainScreen(viewModel: MainViewModel) {
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Button(onClick = { viewModel.initiateLogin(context as Activity) }) {
-                    Text("Login with Spotify")
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Button(onClick = { viewModel.initiateLogin(context as Activity) }) {
+                        Text("Login with Spotify")
+                    }
+                    androidx.compose.material3.TextButton(onClick = onChangeClientId) {
+                        Text("Change Client ID")
+                    }
                 }
             }
         } else {

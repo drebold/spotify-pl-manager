@@ -5,6 +5,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
@@ -15,10 +18,37 @@ import com.example.spotifyplaylistmanager.auth.AuthManager
 import com.example.spotifyplaylistmanager.data.PrefsStorage
 import com.example.spotifyplaylistmanager.data.TokenStorage
 import com.example.spotifyplaylistmanager.domain.TrackMover
+import com.example.spotifyplaylistmanager.ui.AuthFailedScreen
 import com.example.spotifyplaylistmanager.ui.MainScreen
 import com.example.spotifyplaylistmanager.ui.MainViewModel
+import com.example.spotifyplaylistmanager.ui.SetupScreen
 import com.example.spotifyplaylistmanager.ui.theme.SpotifyPlaylistManagerTheme
 import kotlinx.coroutines.launch
+
+sealed class AppScreen {
+    object Setup : AppScreen()
+    object Login : AppScreen()
+    object Main : AppScreen()
+    object AuthFailed : AppScreen()
+}
+
+internal suspend fun checkAuthState(
+    prefsStorage: PrefsStorage,
+    authManager: AuthManager
+): AppScreen {
+    return try {
+        val token = authManager.getValidAccessToken()
+        if (token != null) {
+            AppScreen.Main
+        } else if (prefsStorage.getClientId() == null) {
+            AppScreen.Setup
+        } else {
+            AppScreen.Login
+        }
+    } catch (e: Exception) {
+        AppScreen.AuthFailed
+    }
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -26,6 +56,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var authManager: AuthManager
     private lateinit var prefsStorage: PrefsStorage
     private lateinit var viewModel: MainViewModel
+
+    private var screen by mutableStateOf<AppScreen>(AppScreen.Login)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +75,10 @@ class MainActivity : ComponentActivity() {
             MainViewModel.factory(repo, mover, authManager, prefsStorage)
         )[MainViewModel::class.java]
 
+        lifecycleScope.launch {
+            screen = checkAuthState(prefsStorage, authManager)
+        }
+
         // Handle cold-start auth callback
         intent?.data?.let { uri ->
             if (uri.scheme == "myapp") handleAuthCallback(uri)
@@ -58,7 +94,40 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SpotifyPlaylistManagerTheme {
-                MainScreen(viewModel)
+                when (screen) {
+                    AppScreen.Setup -> SetupScreen { clientId ->
+                        prefsStorage.saveClientId(clientId)
+                        screen = AppScreen.Login
+                    }
+                    AppScreen.Login -> MainScreen(
+                        viewModel = viewModel,
+                        onChangeClientId = {
+                            authManager.logout()
+                            prefsStorage.saveClientId("")
+                            screen = AppScreen.Setup
+                        }
+                    )
+                    AppScreen.Main -> MainScreen(
+                        viewModel = viewModel,
+                        onChangeClientId = {
+                            authManager.logout()
+                            prefsStorage.saveClientId("")
+                            screen = AppScreen.Setup
+                        }
+                    )
+                    AppScreen.AuthFailed -> AuthFailedScreen(
+                        onChangeClientId = {
+                            authManager.logout()
+                            prefsStorage.saveClientId("")
+                            screen = AppScreen.Setup
+                        },
+                        onRetry = {
+                            lifecycleScope.launch {
+                                screen = checkAuthState(prefsStorage, authManager)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -73,7 +142,12 @@ class MainActivity : ComponentActivity() {
     private fun handleAuthCallback(uri: Uri) {
         lifecycleScope.launch {
             val success = authManager.handleCallback(uri)
-            if (success) viewModel.onAuthSuccess()
+            if (success) {
+                screen = AppScreen.Main
+                viewModel.onAuthSuccess()
+            } else {
+                screen = AppScreen.AuthFailed
+            }
         }
     }
 }
