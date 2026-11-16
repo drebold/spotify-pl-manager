@@ -31,8 +31,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         tokenStorage = TokenStorage(this)
-        authManager = AuthManager(tokenStorage)
         prefsStorage = PrefsStorage(this)
+        authManager = AuthManager(tokenStorage, prefsStorage)
 
         val api = SpotifyClient.create(authManager)
         val repo = SpotifyRepositoryImpl(api)

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.net.Uri
 import java.util.Base64
 import androidx.browser.customtabs.CustomTabsIntent
+import com.example.spotifyplaylistmanager.data.PrefsStorage
 import com.example.spotifyplaylistmanager.data.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,13 +16,12 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 
-class AuthManager(private val tokenStorage: TokenStorage) {
+class AuthManager(private val tokenStorage: TokenStorage, private val prefsStorage: PrefsStorage) {
 
     private var pendingVerifier: String? = null
     private var pendingState: String? = null
 
     companion object {
-        private const val CLIENT_ID = "4f594fed820a4305aad21aae910f273b"
         private const val REDIRECT_URI = "myapp://callback"
         private const val AUTH_URL = "https://accounts.spotify.com/authorize"
         private const val TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -52,7 +52,7 @@ class AuthManager(private val tokenStorage: TokenStorage) {
 
         val scope = URLEncoder.encode(SCOPES, "UTF-8")
         val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
-        val url = "$AUTH_URL?client_id=$CLIENT_ID" +
+        val url = "$AUTH_URL?client_id=${prefsStorage.getClientId() ?: ""}" +
                 "&response_type=code" +
                 "&redirect_uri=$redirectUri" +
                 "&scope=$scope" +
@@ -75,7 +75,7 @@ class AuthManager(private val tokenStorage: TokenStorage) {
                 .add("grant_type", "authorization_code")
                 .add("code", code)
                 .add("redirect_uri", REDIRECT_URI)
-                .add("client_id", CLIENT_ID)
+                .add("client_id", prefsStorage.getClientId() ?: "")
                 .add("code_verifier", verifier)
                 .build()
 
@@ -119,7 +119,7 @@ class AuthManager(private val tokenStorage: TokenStorage) {
             val body = FormBody.Builder()
                 .add("grant_type", "refresh_token")
                 .add("refresh_token", refreshToken)
-                .add("client_id", CLIENT_ID)
+                .add("client_id", prefsStorage.getClientId() ?: "")
                 .build()
 
             val request = Request.Builder().url(TOKEN_URL).post(body).build()
