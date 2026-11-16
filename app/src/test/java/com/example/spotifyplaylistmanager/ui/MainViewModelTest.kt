@@ -58,6 +58,7 @@ class MainViewModelTest {
             override suspend fun getCurrentUser() = UserResponse("user1")
             override suspend fun getQueue() = QueueResponse()
             override suspend fun skipToNext() {}
+            override suspend fun getPlaylistSnapshotId(playlistId: String): String = "snap_current"
         }
 
         val authManager = mockk<AuthManager>()
